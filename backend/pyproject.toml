@@ -1,0 +1,39 @@
+[project]
+name = "researchflow-backend"
+version = "0.1.0"
+description = "FastAPI backend for ResearchFlow."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "psycopg[binary]>=3.2.3",
+    "pgvector>=0.3.6",
+    "pydantic-settings>=2.6.1",
+    "langgraph>=0.2.60",
+    "langchain-core>=0.3.28",
+    "openai>=1.58.1",
+    "ddgs>=9.14.0",
+    "trafilatura>=2.0.0",
+    "pymupdf>=1.26.0",
+    "python-multipart>=0.0.20",
+    "alembic>=1.16.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "httpx>=0.28.1",
+    "ruff>=0.8.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

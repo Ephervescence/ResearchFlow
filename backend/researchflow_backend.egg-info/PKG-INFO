@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: researchflow-backend
+Version: 0.1.0
+Summary: FastAPI backend for ResearchFlow.
+Requires-Python: >=3.12
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.32.0
+Requires-Dist: sqlalchemy>=2.0.36
+Requires-Dist: psycopg[binary]>=3.2.3
+Requires-Dist: pgvector>=0.3.6
+Requires-Dist: pydantic-settings>=2.6.1
+Requires-Dist: langgraph>=0.2.60
+Requires-Dist: langchain-core>=0.3.28
+Requires-Dist: openai>=1.58.1
+Requires-Dist: ddgs>=9.14.0
+Requires-Dist: trafilatura>=2.0.0
+Requires-Dist: pymupdf>=1.26.0
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: alembic>=1.16.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.4; extra == "dev"
+Requires-Dist: httpx>=0.28.1; extra == "dev"
+Requires-Dist: ruff>=0.8.4; extra == "dev"
