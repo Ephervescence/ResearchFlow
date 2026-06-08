@@ -250,6 +250,11 @@ pre {
   font-size: 12px;
 }
 
+.step-item .step-error {
+  color: #a13d3d;
+  font-weight: 700;
+}
+
 .source-list {
   display: grid;
   gap: 10px;

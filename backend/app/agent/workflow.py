@@ -336,5 +336,20 @@ def build_research_graph(db: Session):
 def run_research(db: Session, task: Task) -> ResearchState:
     task.status = TaskStatus.running
     db.commit()
-    graph = build_research_graph(db)
-    return graph.invoke({"task_id": task.id, "user_query": task.user_query, "errors": []})
+    try:
+        graph = build_research_graph(db)
+        return graph.invoke({"task_id": task.id, "user_query": task.user_query, "errors": []})
+    except Exception as exc:
+        task.status = TaskStatus.failed
+        db.add(
+            AgentStep(
+                task_id=task.id,
+                step_type="run_failed",
+                input={"query": task.user_query},
+                output={},
+                status=StepStatus.failed,
+                error_message=str(exc),
+            )
+        )
+        db.commit()
+        raise

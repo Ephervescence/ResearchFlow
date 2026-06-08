@@ -1,3 +1,5 @@
+from http.client import IncompleteRead
+
 from app.tools.reader import ReaderTool, extract_text_from_html, truncate_text
 
 
@@ -48,3 +50,52 @@ def test_reader_uses_snippet_for_mock_result() -> None:
     assert result.readable is False
     assert result.content == "Snippet text"
     assert result.error is None
+
+
+def test_reader_falls_back_when_download_is_incomplete(monkeypatch) -> None:
+    tool = ReaderTool(max_chars=100)
+
+    def raise_incomplete_read(url: str) -> str:
+        raise IncompleteRead(b"partial html", 12)
+
+    monkeypatch.setattr(tool, "_download_html", raise_incomplete_read)
+
+    result = tool.read(
+        {
+            "title": "Interrupted source",
+            "url": "https://example.com/article",
+            "snippet": "Useful snippet",
+            "provider": "ddgs",
+        }
+    )
+
+    assert result.readable is False
+    assert result.content == "Useful snippet"
+    assert "IncompleteRead" in str(result.error)
+
+
+def test_read_many_keeps_going_when_one_source_crashes(monkeypatch) -> None:
+    tool = ReaderTool(max_chars=100)
+
+    def read_with_one_failure(search_result: dict[str, str]):
+        if search_result["title"] == "Broken":
+            raise RuntimeError("reader crashed")
+        return tool._fallback_document(
+            search_result["title"],
+            search_result["url"],
+            search_result["snippet"],
+            None,
+        )
+
+    monkeypatch.setattr(tool, "read", read_with_one_failure)
+
+    results = tool.read_many(
+        [
+            {"title": "Broken", "url": "https://example.com/broken", "snippet": "Broken snippet"},
+            {"title": "Good", "url": "https://example.com/good", "snippet": "Good snippet"},
+        ]
+    )
+
+    assert len(results) == 2
+    assert results[0]["error"] == "reader crashed"
+    assert results[1]["title"] == "Good"

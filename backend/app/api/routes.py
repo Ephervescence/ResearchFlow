@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.agent.workflow import run_research
-from app.db.session import get_db
+from app.db.models import TaskStatus
+from app.db.session import SessionLocal, get_db
 from app.schemas.task import (
     AgentStepRead,
     MemoryRead,
@@ -35,6 +36,14 @@ from app.services.task_service import (
 router = APIRouter()
 
 
+def run_task_in_background(task_id: int) -> None:
+    with SessionLocal() as db:
+        task = get_task(db, task_id)
+        if task is None:
+            return
+        run_research(db, task)
+
+
 @router.post("/tasks", response_model=TaskRead)
 def create_research_task(payload: TaskCreate, db: Session = Depends(get_db)):
     return create_task(db, payload)
@@ -54,12 +63,15 @@ def read_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/tasks/{task_id}/run", response_model=dict)
-def run_task(task_id: int, db: Session = Depends(get_db)):
+def run_task(task_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     task = get_task(db, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    state = run_research(db, task)
-    return {"task_id": task_id, "status": "completed", "state": state}
+    if task.status != TaskStatus.running:
+        task.status = TaskStatus.running
+        db.commit()
+        background_tasks.add_task(run_task_in_background, task_id)
+    return {"task_id": task_id, "status": task.status}
 
 
 @router.post("/tasks/{task_id}/files", response_model=UploadedFileRead)

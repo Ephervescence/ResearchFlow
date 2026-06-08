@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from http.client import IncompleteRead
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -57,7 +58,20 @@ class ReaderTool:
         self.max_chars = max_chars or settings.reader_max_chars
 
     def read_many(self, search_results: list[dict[str, str]]) -> list[dict[str, str | bool | None]]:
-        return [self.read(result).to_dict() for result in search_results]
+        documents = []
+        for result in search_results:
+            try:
+                documents.append(self.read(result).to_dict())
+            except Exception as exc:
+                documents.append(
+                    self._fallback_document(
+                        result.get("title", "").strip(),
+                        result.get("url", "").strip(),
+                        result.get("snippet", "").strip(),
+                        str(exc),
+                    ).to_dict()
+                )
+        return documents
 
     def read(self, search_result: dict[str, str]) -> ReadDocument:
         title = search_result.get("title", "").strip()
@@ -82,7 +96,7 @@ class ReaderTool:
                 source_type="web",
                 readable=True,
             )
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+        except (HTTPError, URLError, TimeoutError, ValueError, IncompleteRead) as exc:
             return self._fallback_document(title, url, snippet, str(exc))
 
     def _download_html(self, url: str) -> str:

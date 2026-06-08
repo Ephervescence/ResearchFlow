@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -69,7 +72,14 @@ class SearchTool:
 
     def search(self, query: str) -> list[SearchResult]:
         if self.provider == "ddgs":
-            return self._search_ddgs(query)
+            try:
+                results = self._search_ddgs(query)
+            except Exception as exc:
+                logger.warning("ddgs search failed; falling back to mock search: %s", exc)
+                return self._search_mock(query)
+            if results:
+                return results
+            logger.warning("ddgs search returned no results; falling back to mock search")
         return self._search_mock(query)
 
     def _search_ddgs(self, query: str) -> list[SearchResult]:

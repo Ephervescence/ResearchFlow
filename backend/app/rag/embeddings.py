@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import math
 
 from openai import OpenAI
 
 from app.core.config import settings
 from app.db.models import EMBEDDING_DIM
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingClient:
@@ -26,17 +29,26 @@ class EmbeddingClient:
         if self.provider == "mock" or self.client is None:
             return [mock_embedding(text, EMBEDDING_DIM) for text in texts]
 
-        response = self.client.embeddings.create(
-            model=self.model,
-            input=texts,
-            dimensions=self.dimensions,
-        )
+        try:
+            response = self.client.embeddings.create(
+                model=self.model,
+                input=texts,
+                dimensions=self.dimensions,
+            )
+        except Exception as exc:
+            logger.warning("embedding request failed; falling back to mock embeddings: %s", exc)
+            return [mock_embedding(text, EMBEDDING_DIM) for text in texts]
+
         embeddings = [item.embedding for item in response.data]
         for embedding in embeddings:
             if len(embedding) != EMBEDDING_DIM:
-                raise ValueError(
-                    f"Embedding dimension {len(embedding)} does not match database dimension {EMBEDDING_DIM}"
+                logger.warning(
+                    "embedding dimension %s does not match database dimension %s; "
+                    "falling back to mock embeddings",
+                    len(embedding),
+                    EMBEDDING_DIM,
                 )
+                return [mock_embedding(text, EMBEDDING_DIM) for text in texts]
         return embeddings
 
 

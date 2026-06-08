@@ -4,7 +4,7 @@ import pytest
 
 from app.db.models import EMBEDDING_DIM
 from app.rag.chunking import chunk_text
-from app.rag.embeddings import mock_embedding
+from app.rag.embeddings import EmbeddingClient, mock_embedding
 
 
 def test_chunk_text_splits_with_overlap() -> None:
@@ -27,3 +27,21 @@ def test_mock_embedding_is_stable_and_normalized() -> None:
     assert len(first) == EMBEDDING_DIM
     norm = math.sqrt(sum(value * value for value in first))
     assert norm == pytest.approx(1.0)
+
+
+def test_embedding_client_falls_back_to_mock_when_provider_fails() -> None:
+    class BrokenEmbeddings:
+        def create(self, **kwargs):
+            raise RuntimeError("embedding endpoint unavailable")
+
+    class BrokenClient:
+        embeddings = BrokenEmbeddings()
+
+    client = EmbeddingClient()
+    client.provider = "api"
+    client.client = BrokenClient()
+
+    embeddings = client.embed_documents(["multimodal rag retrieval"])
+
+    assert len(embeddings) == 1
+    assert len(embeddings[0]) == EMBEDDING_DIM

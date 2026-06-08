@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export type Task = {
   id: number;
@@ -83,6 +83,10 @@ export function createTask(userQuery: string): Promise<Task> {
     method: "POST",
     body: JSON.stringify({ user_query: userQuery }),
   });
+}
+
+export function getTask(taskId: number): Promise<Task> {
+  return request<Task>(`/tasks/${taskId}`);
 }
 
 export function runTask(taskId: number): Promise<{ task_id: number; status: string }> {

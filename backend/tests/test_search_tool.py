@@ -33,3 +33,17 @@ def test_search_many_deduplicates_urls() -> None:
     assert len(results) == 1
     assert results[0]["provider"] == "mock"
     assert results[0]["url"] == "https://example.com/researchflow/mock-source"
+
+
+def test_ddgs_failure_falls_back_to_mock(monkeypatch) -> None:
+    tool = SearchTool(provider="ddgs", max_results=1)
+
+    def raise_ddgs_error(query: str):
+        raise RuntimeError("network unavailable")
+
+    monkeypatch.setattr(tool, "_search_ddgs", raise_ddgs_error)
+
+    results = tool.search("multimodal rag")
+
+    assert len(results) == 1
+    assert results[0].provider == "mock"

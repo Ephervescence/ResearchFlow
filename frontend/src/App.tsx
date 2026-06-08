@@ -24,6 +24,7 @@ import {
   getReport,
   getSources,
   getSteps,
+  getTask,
   runTask,
   uploadTaskFile,
 } from "./api";
@@ -48,6 +49,13 @@ function isExternalUrl(url: string) {
 
 function compactJson(value: Record<string, unknown>) {
   return JSON.stringify(value, null, 2);
+}
+
+const pollIntervalMs = 2000;
+const maxPollAttempts = 150;
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export function App() {
@@ -93,19 +101,30 @@ export function App() {
       setUploadedFiles(uploaded);
 
       await runTask(created.id);
-      const [nextSteps, nextSources, nextCitations, nextMemories, nextReport] = await Promise.all([
-        getSteps(created.id),
-        getSources(created.id),
-        getCitations(created.id),
-        getMemories(),
-        getReport(created.id),
-      ]);
-      setSteps(nextSteps);
-      setSources(nextSources);
-      setCitations(nextCitations);
-      setMemories(nextMemories);
-      setReport(nextReport);
-      setTask({ ...created, status: "completed" });
+      for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
+        const [nextTask, nextSteps, nextSources, nextCitations, nextMemories] = await Promise.all([
+          getTask(created.id),
+          getSteps(created.id),
+          getSources(created.id),
+          getCitations(created.id),
+          getMemories(),
+        ]);
+        setTask(nextTask);
+        setSteps(nextSteps);
+        setSources(nextSources);
+        setCitations(nextCitations);
+        setMemories(nextMemories);
+
+        if (nextTask.status === "completed") {
+          setReport(await getReport(created.id));
+          return;
+        }
+        if (nextTask.status === "failed") {
+          throw new Error("研究任务执行失败，请查看执行流里的 run_failed 日志。");
+        }
+        await delay(pollIntervalMs);
+      }
+      throw new Error("研究任务仍在运行，请稍后刷新页面查看结果。");
     } catch (currentError) {
       setError(currentError instanceof Error ? currentError.message : "启动研究任务失败");
     } finally {
@@ -194,6 +213,7 @@ export function App() {
               <p>
                 {step.step_type} · {step.duration_ms ?? 0} ms
               </p>
+              {step.error_message && <pre className="step-error">{step.error_message}</pre>}
               <pre>{compactJson(step.output)}</pre>
             </article>
           ))}
