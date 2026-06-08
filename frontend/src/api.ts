@@ -73,7 +73,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    const rawMessage = await response.text();
+    let detail: unknown;
+    try {
+      const parsed = JSON.parse(rawMessage) as { detail?: unknown };
+      detail = parsed.detail;
+    } catch {
+      detail = undefined;
+    }
+    if (typeof detail === "string") {
+      throw new Error(detail);
+    }
+    throw new Error(rawMessage);
   }
   return response.json() as Promise<T>;
 }

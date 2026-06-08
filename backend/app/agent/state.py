@@ -13,4 +13,6 @@ class ResearchState(TypedDict, total=False):
     retrieved_chunks: list[dict]
     reflection: dict
     report_markdown: str
+    skipped: bool
+    message: str
     errors: list[dict]

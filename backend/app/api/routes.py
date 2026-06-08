@@ -22,6 +22,7 @@ from app.schemas.task import (
 from app.services.citation_service import list_report_citations
 from app.services.file_service import list_uploaded_files, save_uploaded_file
 from app.services.memory_service import list_memories, search_memories
+from app.services.research_intent import assess_research_intent
 from app.services.rag_service import retrieve_relevant_chunks
 from app.services.task_service import (
     create_task,
@@ -46,6 +47,9 @@ def run_task_in_background(task_id: int) -> None:
 
 @router.post("/tasks", response_model=TaskRead)
 def create_research_task(payload: TaskCreate, db: Session = Depends(get_db)):
+    intent = assess_research_intent(payload.user_query)
+    if not intent.is_research:
+        raise HTTPException(status_code=400, detail=intent.message)
     return create_task(db, payload)
 
 
@@ -67,6 +71,9 @@ def run_task(task_id: int, background_tasks: BackgroundTasks, db: Session = Depe
     task = get_task(db, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    intent = assess_research_intent(task.user_query)
+    if not intent.is_research:
+        return {"task_id": task_id, "status": task.status, "skipped": True, "message": intent.message}
     if task.status != TaskStatus.running:
         task.status = TaskStatus.running
         db.commit()

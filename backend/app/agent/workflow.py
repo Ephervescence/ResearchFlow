@@ -14,8 +14,25 @@ from app.services.citation_service import (
 )
 from app.services.memory_service import build_memory_content, create_memory, search_memories
 from app.services.rag_service import SourceDocument, index_documents, retrieve_relevant_chunks
+from app.services.research_intent import assess_research_intent
 from app.tools.reader import ReaderTool, truncate_text
 from app.tools.search import SearchTool
+
+MAX_SEARCH_QUERIES = 3
+
+
+def limit_search_keywords(keywords: list[str], max_queries: int = MAX_SEARCH_QUERIES) -> list[str]:
+    limited: list[str] = []
+    seen: set[str] = set()
+    for keyword in keywords:
+        normalized = " ".join(keyword.split())
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        limited.append(normalized)
+        if len(limited) >= max_queries:
+            break
+    return limited
 
 
 def _record_step(
@@ -83,7 +100,7 @@ def build_research_graph(db: Session):
 
     def memory_recall(state: ResearchState) -> ResearchState:
         started_at = perf_counter()
-        memories = search_memories(db, state["user_query"])
+        memories = search_memories(db, state["user_query"], top_k=2)
         output = {"recalled_memories": memories}
         step_output = {
             "memory_count": len(memories),
@@ -103,12 +120,7 @@ def build_research_graph(db: Session):
 
     def search(state: ResearchState) -> ResearchState:
         started_at = perf_counter()
-        memory_terms = " ".join(
-            truncate_text(memory["content"], 120) for memory in state.get("recalled_memories", [])[:2]
-        )
-        keywords = [*state["keywords"]]
-        if memory_terms:
-            keywords.append(f"{state['user_query']} {memory_terms}")
+        keywords = limit_search_keywords(state["keywords"])
         results = search_tool.search_many(keywords)
         output = {"search_results": results, "keywords": keywords}
         _record_step(db, state["task_id"], "search", {"keywords": keywords}, output, started_at)
@@ -334,6 +346,16 @@ def build_research_graph(db: Session):
 
 
 def run_research(db: Session, task: Task) -> ResearchState:
+    intent = assess_research_intent(task.user_query)
+    if not intent.is_research:
+        return {
+            "task_id": task.id,
+            "user_query": task.user_query,
+            "skipped": True,
+            "message": intent.message,
+            "errors": [],
+        }
+
     task.status = TaskStatus.running
     db.commit()
     try:
